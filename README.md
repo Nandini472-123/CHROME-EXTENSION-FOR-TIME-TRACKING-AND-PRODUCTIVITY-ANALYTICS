@@ -50,4 +50,4 @@ While the current version of the extension provides local time tracking and basi
 ✅ Weekly summary reports or reminders
 ✅ User-configurable site categories
 ✅ Auto-reset of data at the start of each week
-OUTPUT:
+OUTPUT:![Image](https://github.com/user-attachments/assets/d6b88e4b-5a32-47b2-803e-fb9f61d32e23)
