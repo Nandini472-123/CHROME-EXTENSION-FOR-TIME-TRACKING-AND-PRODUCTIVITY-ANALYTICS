@@ -1,0 +1,126 @@
+// manifest.json
+{
+  "manifest_version": 3,
+  "name": "Time Tracker & Productivity Analytics",
+  "description": "Tracks time on websites and provides productivity reports.",
+  "version": "1.0",
+  "permissions": [
+    "tabs",
+    "storage",
+    "scripting"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
+
+// background.js
+let currentSite = null;
+let startTime = null;
+
+const siteCategories = {
+  'leetcode.com': 'productive',
+  'github.com': 'productive',
+  'stackoverflow.com': 'productive',
+  'facebook.com': 'unproductive',
+  'instagram.com': 'unproductive',
+  'youtube.com': 'unproductive'
+};
+
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  const tab = await chrome.tabs.get(activeInfo.tabId);
+  handleTabChange(tab.url);
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.url) {
+    handleTabChange(changeInfo.url);
+  }
+});
+
+function handleTabChange(url) {
+  const domain = getDomain(url);
+
+  const now = Date.now();
+  if (currentSite && startTime) {
+    const timeSpent = now - startTime;
+    saveTime(currentSite, timeSpent);
+  }
+
+  currentSite = domain;
+  startTime = now;
+}
+
+function getDomain(url) {
+  try {
+    const u = new URL(url);
+    return u.hostname.replace('www.', '');
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveTime(site, timeSpent) {
+  chrome.storage.local.get(['siteData'], (result) => {
+    let data = result.siteData || {};
+    if (!data[site]) {
+      data[site] = { time: 0, category: siteCategories[site] || 'neutral' };
+    }
+    data[site].time += timeSpent;
+    chrome.storage.local.set({ siteData: data });
+  });
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.action === 'getData') {
+    chrome.storage.local.get(['siteData'], (result) => {
+      sendResponse(result.siteData || {});
+    });
+    return true;  // Required for async sendResponse
+  }
+});
+
+// popup.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Productivity Dashboard</title>
+  <style>
+    body { font-family: sans-serif; padding: 10px; width: 300px; }
+    table { width: 100%; font-size: 12px; }
+    th, td { text-align: left; padding: 2px; }
+    th { background: #f0f0f0; }
+    .productive { color: green; }
+    .unproductive { color: red; }
+  </style>
+</head>
+<body>
+  <h3>Weekly Productivity</h3>
+  <table>
+    <thead>
+      <tr><th>Site</th><th>Time (min)</th><th>Type</th></tr>
+    </thead>
+    <tbody id="data"></tbody>
+  </table>
+</body>
+<script>
+  chrome.runtime.sendMessage({ action: 'getData' }, (data) => {
+    const tbody = document.getElementById('data');
+    tbody.innerHTML = '';
+
+    for (const [site, info] of Object.entries(data)) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${site}</td>
+        <td>${Math.round(info.time / 60000)}</td>
+        <td class="${info.category}">${info.category}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+  });
+</script>
+</html>
